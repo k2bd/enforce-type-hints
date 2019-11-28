@@ -2,6 +2,7 @@ import inspect
 
 from traits.api import HasTraits, TraitError
 
+from typen._typing import typing_to_trait
 from typen.exceptions import (
     ParameterTypeError,
     ReturnTypeError,
@@ -89,10 +90,18 @@ class Enforcer:
                 raise UnspecifiedReturnTypeError(msg.format(func.__name__))
             self.returns = UNSPECIFIED
 
+        # Convert any non-trait type hints to traits
+        spec = {
+            k: to_traitable(v) for k, v in spec.items()
+        }
+        self.returns = to_traitable(self.returns)
+        self.packed_args_spec = to_traitable(self.packed_args_spec)
+        self.packed_kwargs_spec = to_traitable(self.packed_kwargs_spec)
+
         # Restore order of args
         self.args = [Arg(k, spec[k]) for k in params.keys()]
 
-        # Validate defaults
+        # Store defaults for validation
         self.default_kwargs = {
             k: v.default for k, v in params.items()
             if v.default is not inspect.Parameter.empty
@@ -220,6 +229,18 @@ class Enforcer:
                 msg.format(self.func.__name__, self.returns, value, type(value)))
             exception.return_value = value
             raise exception from None
+
+
+def to_traitable(param_type):
+    """
+    Function to attempt to turn the input parameter type to a suitable Traits
+    type.
+    """
+    param_type = typing_to_trait(param_type)
+    # More conversion attempts can be made if more than just typing types
+    # are supported
+
+    return param_type
 
 
 class FunctionSignature(HasTraits):
